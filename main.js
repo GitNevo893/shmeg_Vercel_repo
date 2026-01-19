@@ -1,4 +1,4 @@
-const signalingUrl = "wss://YOUR-RENDER-SIGNALING-SERVER";
+const signalingUrl = "wss://shmeg1repo.onrender.com";
 let socket;
 let pc;
 let localStream;
