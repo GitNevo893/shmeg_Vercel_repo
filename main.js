@@ -1,12 +1,4 @@
 console.log("🔥 main.js loaded");
-
-const button = document.getElementById("toggleBtn");
-console.log("Button:", button);
-
-button.addEventListener("click", () => {
-  console.log("Button clicked");
-});
-
 const signalingUrl = "wss://shmeg1repo.onrender.com";
 let socket;
 let pc;
