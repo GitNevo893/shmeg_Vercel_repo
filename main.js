@@ -1,3 +1,4 @@
+console.log("🔥 main.js loaded");
 const signalingUrl = "wss://shmeg1repo.onrender.com";
 let socket;
 let pc;
