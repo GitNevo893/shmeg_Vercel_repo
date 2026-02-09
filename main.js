@@ -52,22 +52,18 @@ async function startWebRTC() {
     audio.autoplay = true;
   };
 
-  // 5. signaling
-  socket = new WebSocket(signalingUrl);
+ // 5. signaling
+socket = new WebSocket(signalingUrl);
 
-  socket.onmessage = async (msg) => {
-    const data = JSON.parse(msg.data);
+socket.onmessage = async (msg) => {
+  const data = JSON.parse(msg.data);
 
-    if (data.type === "answer") {
-      await pc.setRemoteDescription(data);
-    }
-  };
+  if (data.type === "offer") {
+    await pc.setRemoteDescription(data);
 
-  // 6. create and send offer
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
 
-  socket.onopen = () => {
-    socket.send(JSON.stringify(offer));
-  };
-}
+    socket.send(JSON.stringify(answer));
+  }
+};
