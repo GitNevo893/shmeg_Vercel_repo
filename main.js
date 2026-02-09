@@ -58,29 +58,3 @@ async function startWebRTC() {
     socket.send(JSON.stringify(offer));
   };
 }
-
-const ws = new WebSocket("wss://YOUR_RENDER_URL");
-const pc = new RTCPeerConnection();
-
-ws.onmessage = async (event) => {
-  const data = JSON.parse(event.data);
-
-  if (data.type === "offer") {
-    console.log("Received offer");
-
-    await pc.setRemoteDescription({
-      type: "offer",
-      sdp: data.sdp
-    });
-
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    ws.send(JSON.stringify({
-      type: "answer",
-      sdp: pc.localDescription.sdp
-    }));
-
-    console.log("Sent answer");
-  }
-};
