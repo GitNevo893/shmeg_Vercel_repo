@@ -55,16 +55,19 @@ async function startWebRTC() {
  // 5. signaling
 socket = new WebSocket(signalingUrl);
 
+socket.onopen = () => {
+  console.log("✅ WebSocket connected");
+};
+  
 socket.onmessage = async (msg) => {
   const data = JSON.parse(msg.data);
 
-  if (data.type === "offer") {
+ socket.onmessage = async (msg) => {
+  const data = JSON.parse(msg.data);
+
+  if (data.type === "answer") {
     await pc.setRemoteDescription(data);
-
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    socket.send(JSON.stringify(answer));
+    console.log("✅ SDP answer received and applied");
   }
 };
 
