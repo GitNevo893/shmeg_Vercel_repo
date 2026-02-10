@@ -59,13 +59,21 @@ socket.onopen = () => {
   console.log("✅ WebSocket connected");
 };
   
- socket.onmessage = async (msg) => {
+socket.onmessage = async (msg) => {
   const data = JSON.parse(msg.data);
 
-  if (data.type === "answer") {
+  if (data.type === "offer") {
+    console.log("📩 SDP offer received from Pi");
+
     await pc.setRemoteDescription(data);
-    console.log("✅ SDP answer received and applied");
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    socket.send(JSON.stringify(answer));
+    console.log("📤 SDP answer sent to Pi");
   }
 };
+
 
 }
