@@ -25,7 +25,11 @@ async function startWebRTC() {
   localStream.getAudioTracks()[0].enabled = false;
 
   // 2. create peer connection
-  pc = new RTCPeerConnection();
+  pc = new RTCPeerConnection({
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" }
+  ]
+});
 
   pc.ondatachannel = (event) => {
   const channel = event.channel;
