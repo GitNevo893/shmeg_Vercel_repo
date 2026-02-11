@@ -29,7 +29,7 @@ async function startWebRTC() {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" }
   ]
-});
+  });
 
   pc.ondatachannel = (event) => {
   const channel = event.channel;
@@ -85,6 +85,17 @@ socket.onmessage = async (msg) => {
 
     socket.send(JSON.stringify(answer));
     console.log("📤 SDP answer sent");
+  }
+  if (data.type === "ice") {
+    await pc.addIceCandidate(data.candidate);
+  }
+};
+pc.onicecandidate = (event) => {
+  if (event.candidate) {
+    socket.send(JSON.stringify({
+      type: "ice",
+      candidate: event.candidate
+    }));
   }
 };
 
