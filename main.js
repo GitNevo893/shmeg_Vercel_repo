@@ -60,10 +60,19 @@ socket.onopen = () => {
 };
   
 socket.onmessage = async (msg) => {
-  const data = JSON.parse(msg.data);
+  let text;
+
+  // If message is Blob, convert to text
+  if (msg.data instanceof Blob) {
+    text = await msg.data.text();
+  } else {
+    text = msg.data;
+  }
+
+  const data = JSON.parse(text);
 
   if (data.type === "offer") {
-    console.log("📩 SDP offer received from Pi");
+    console.log("📥 SDP offer received");
 
     await pc.setRemoteDescription(data);
 
@@ -71,9 +80,8 @@ socket.onmessage = async (msg) => {
     await pc.setLocalDescription(answer);
 
     socket.send(JSON.stringify(answer));
-    console.log("📤 SDP answer sent to Pi");
+    console.log("📤 SDP answer sent");
   }
 };
-
 
 }
