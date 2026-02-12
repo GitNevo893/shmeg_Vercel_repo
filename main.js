@@ -1,3 +1,22 @@
+console.log("🔥 main.js loaded");
+const signalingUrl = "wss://shmeg1repo.onrender.com";
+let socket;
+let pc;
+let localStream;
+let isMuted = true;
+
+const button = document.getElementById("toggleBtn");
+
+button.onclick = async () => {
+  if (!pc) {
+    await startWebRTC();
+  }
+
+  isMuted = !isMuted;
+  localStream.getAudioTracks()[0].enabled = !isMuted;
+  button.textContent = isMuted ? "Unmute" : "Mute";
+};
+
 async function startWebRTC() {
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   localStream.getAudioTracks()[0].enabled = false;
