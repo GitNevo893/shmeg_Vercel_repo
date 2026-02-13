@@ -92,4 +92,17 @@ pc = new RTCPeerConnection({
       }));
     }
   };
+pc.onicecandidate = (event) => {
+  if (event.candidate) {
+    console.log("LOCAL ICE:", event.candidate.candidate);
+
+    socket.send(JSON.stringify({
+      type: "ice",
+      candidate: event.candidate
+    }));
+  } else {
+    console.log("ICE gathering complete");
+  }
+};
+
 }
