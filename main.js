@@ -114,6 +114,5 @@ pc.onicecandidate = (event) => {
     console.log("ICE gathering complete");
   }
 };
-audio.play().catch(e => console.log("Playback error:", e));
   
 }
