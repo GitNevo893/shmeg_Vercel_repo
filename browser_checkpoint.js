@@ -18,70 +18,96 @@ button.onclick = async () => {
 };
 
 async function startWebRTC() {
-  // 1. get microphone
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-  // start muted
   localStream.getAudioTracks()[0].enabled = false;
 
-  // 2. create peer connection
-  pc = new RTCPeerConnection();
+pc = new RTCPeerConnection({
+  iceTransportPolicy: "relay",   // <- forces TURN
+  iceServers: [
+    {
+      urls: "turn:openrelay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject"
+    }
+  ]
+});
+pc.ontrack = (event) => {
+  console.log("🎵 Audio received from Pi");
 
-  pc.ondatachannel = (event) => {
-  const channel = event.channel;
+  const audio = document.createElement("audio");
+  audio.srcObject = event.streams[0];
+  audio.autoplay = true;
+  audio.controls = true;
+  audio.muted = false;
+  audio.volume = 1.0;
 
-  channel.onopen = () => {
-    console.log("DataChannel open!");
-    channel.send("Hello from browser");
-  };
-
-  channel.onmessage = (event) => {
-    console.log("Received from Pi:", event.data);
-  };
+  document.body.appendChild(audio);
+  audio.play().catch(e => console.log("Playback error:", e));
 };
 
-  // 3. send mic audio
+  pc.onconnectionstatechange = () => {
+    console.log("Connection state:", pc.connectionState);
+  };
+
+  pc.ondatachannel = (event) => {
+    const channel = event.channel;
+
+    channel.onopen = () => {
+      console.log("✅ DataChannel open");
+      channel.send("Hello from browser");
+    };
+
+    channel.onmessage = (event) => {
+      console.log("📩 From Pi:", event.data);
+    };
+  };
+
   localStream.getTracks().forEach(track =>
     pc.addTrack(track, localStream)
   );
 
-  // 4. receive audio (speaker)
-  pc.ontrack = (event) => {
-    const audio = document.createElement("audio");
-    audio.srcObject = event.streams[0];
-    audio.autoplay = true;
+  socket = new WebSocket(signalingUrl);
+
+  socket.onopen = () => {
+    console.log("✅ WebSocket connected");
   };
 
- // 5. signaling
-socket = new WebSocket(signalingUrl);
+  socket.onmessage = async (msg) => {
+    console.log("Received signaling message:", msg.data);
+    let text = msg.data instanceof Blob
+      ? await msg.data.text()
+      : msg.data;
 
-socket.onopen = () => {
-  console.log("✅ WebSocket connected");
+    const data = JSON.parse(text);
+
+    if (data.type === "offer") {
+      console.log("📥 SDP offer received");
+
+      await pc.setRemoteDescription(data);
+
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      socket.send(JSON.stringify(answer));
+      console.log("📤 SDP answer sent");
+    }
+
+    else if (data.type === "ice") {
+      await pc.addIceCandidate(data.candidate);
+    }
+  };
+
+pc.onicecandidate = (event) => {
+  if (event.candidate) {
+    console.log("LOCAL ICE:", event.candidate.candidate);
+
+    socket.send(JSON.stringify({
+      type: "ice",
+      candidate: event.candidate
+    }));
+  } else {
+    console.log("ICE gathering complete");
+  }
 };
   
-socket.onmessage = async (msg) => {
-  let text;
-
-  // If message is Blob, convert to text
-  if (msg.data instanceof Blob) {
-    text = await msg.data.text();
-  } else {
-    text = msg.data;
-  }
-
-  const data = JSON.parse(text);
-
-  if (data.type === "offer") {
-    console.log("📥 SDP offer received");
-
-    await pc.setRemoteDescription(data);
-
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    socket.send(JSON.stringify(answer));
-    console.log("📤 SDP answer sent");
-  }
-};
-
 }
