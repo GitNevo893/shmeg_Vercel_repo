@@ -96,7 +96,6 @@ pc.ontrack = (event) => {
       await pc.addIceCandidate(data.candidate);
     }
   };
-  };
 
 pc.onicecandidate = (event) => {
   if (event.candidate) {
