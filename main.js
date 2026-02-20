@@ -40,6 +40,7 @@ pc.ontrack = (event) => {
   audio.controls = true;
 
   document.body.appendChild(audio);
+  audio.play().catch(e => console.log("Playback error:", e));
 };
 
   pc.onconnectionstatechange = () => {
