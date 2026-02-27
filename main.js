@@ -34,33 +34,31 @@ function setStatus(text) {
 function setMuted(muted) {
   isMuted = muted;
 
-if (localStream) {
+  if (localStream) {
     localStream.getAudioTracks().forEach((track) => {
       track.enabled = !muted;
     });
   }
 
-  button.textContent = muted ? "Hold to Talk (Muted)" : "Talking... release to mute";
+  if (button) {
+    button.textContent = muted
+      ? "Hold to Talk (Muted)"
+      : "Talking... release to mute";
+  }
 }
 
-function wirePushToTalk() {
-  // Press + hold to talk, release to mute.
-  button.addEventListener("pointerdown", () => setMuted(false));
-
-  const remute = () => setMuted(true);
-  button.addEventListener("pointerup", remute);
-  button.addEventListener("pointerleave", remute);
-  button.addEventListener("pointercancel", remute);
-  window.addEventListener("blur", remute);
+function wireToggleToTalk() {
+  button.addEventListener("click", () => {
+    setMuted(!isMuted);
+  });
 }
-
 async function setupLocalAudio() {
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   localStream.getAudioTracks().forEach((track) => {
     track.enabled = false;
   });
  setMuted(true);
-  log("🎤 Microphone captured (initially muted)");
+  button.textContent = muted ? "Unmute" : "Mute";
 }
 
 function createPeerConnection() {
@@ -73,6 +71,7 @@ function createPeerConnection() {
 
   pc.onicecandidate = (event) => {
     if (event.candidate) {
+      log("LOCAL ICE:", event.candidate.candidate);
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "ice", candidate: event.candidate }));
       }
@@ -122,13 +121,17 @@ function connectWebSocket() {
       socket.send(JSON.stringify(answer));
       log("📤 SDP answer sent");
     } else if (data.type === "ice" && data.candidate) {
-      log("📥 Remote ICE candidate added");
+      try {
+        await pc.addIceCandidate(data.candidate);
+        log("📥 Remote ICE candidate added");
+      } catch (e) {
+        log("⚠️ Failed to add ICE candidate:", e);
+      }
     }
-  };
-}
+  }
 async function init() {
   try {
-    wirePushToTalk();
+    wireToggleToTalk();
     await setupLocalAudio();
     createPeerConnection();
     connectWebSocket();
