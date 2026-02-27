@@ -1,5 +1,18 @@
 console.log("🔥 main.js loaded");
-const signalingUrl = "wss://shmeg1repo.onrender.com";
+const SIGNALING_URL = "wss://shmeg1repo.onrender.com";
+const FORCE_TURN_RELAY = false; // Set true to force TURN relay-only testing.
+
+const pcConfig = {
+  iceTransportPolicy: FORCE_TURN_RELAY ? "relay" : "all",
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    {
+      urls: "turn:openrelay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ],
+};
 
 let socket;
 let pc;
@@ -7,89 +20,124 @@ let localStream;
 let isMuted = true;
 
 const button = document.getElementById("toggleBtn");
+const statusEl = document.getElementById("status");
+const remoteAudio = document.getElementById("remoteAudio");
 
-button.onclick = async () => {
-  if (!pc) await startWebRTC();
+function log(...args) {
+  console.log(...args);
+}
 
-  isMuted = !isMuted;
-  localStream.getAudioTracks()[0].enabled = !isMuted;
-  button.textContent = isMuted ? "Unmute" : "Mute";
-};
+function setStatus(text) {
+  if (statusEl) statusEl.textContent = text;
+}
 
-async function startWebRTC() {
-  // 1) mic from browser
+function setMuted(muted) {
+  isMuted = muted;
+
+if (localStream) {
+    localStream.getAudioTracks().forEach((track) => {
+      track.enabled = !muted;
+    });
+  }
+
+  button.textContent = muted ? "Hold to Talk (Muted)" : "Talking... release to mute";
+}
+
+function wirePushToTalk() {
+  // Press + hold to talk, release to mute.
+  button.addEventListener("pointerdown", () => setMuted(false));
+
+  const remute = () => setMuted(true);
+  button.addEventListener("pointerup", remute);
+  button.addEventListener("pointerleave", remute);
+  button.addEventListener("pointercancel", remute);
+  window.addEventListener("blur", remute);
+}
+
+async function setupLocalAudio() {
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  localStream.getAudioTracks()[0].enabled = false;
-
-  // 2) PeerConnection (FORCE TURN)
-  pc = new RTCPeerConnection({
-    iceTransportPolicy: "relay", // forces relay candidates only
-    iceServers: [
-      {
-        urls: "turn:openrelay.metered.ca:443?transport=tcp",
-        username: "openrelayproject",
-        credential: "openrelayproject",
-      },
-    ],
+  localStream.getAudioTracks().forEach((track) => {
+    track.enabled = false;
   });
+ setMuted(true);
+  log("🎤 Microphone captured (initially muted)");
+}
+
+function createPeerConnection() {
+  pc = new RTCPeerConnection(pcConfig);
 
   pc.onconnectionstatechange = () => {
-    console.log("Connection state:", pc.connectionState);
+    log("🔗 Connection state:", pc.connectionState);
+    setStatus(`Connection: ${pc.connectionState}`);
   };
 
-  // 3) play audio from Pi
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "ice", candidate: event.candidate }));
+      }
+    } else {
+      log("✅ ICE gathering complete");
+    }
+  };
+
   pc.ontrack = (event) => {
-    console.log("🎵 Audio received from Pi");
-
-    const audio = document.createElement("audio");
-    audio.srcObject = event.streams[0];
-    audio.autoplay = true;
-    audio.controls = true;
-    audio.muted = false;
-    audio.volume = 1.0;
-
-    document.body.appendChild(audio);
-    audio.play().catch((e) => console.log("Playback error:", e));
+    log("🎵 Audio track received from Pi");
+    remoteAudio.srcObject = event.streams[0];
+    remoteAudio
+      .play()
+      .catch((err) => log("⚠️ Remote audio autoplay blocked until user gesture:", err));
   };
 
-  // 4) send browser mic to Pi
+  // send browser mic to Pi
   localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+}
 
-  // 5) signaling socket
-  socket = new WebSocket(signalingUrl);
+function connectWebSocket() {
+  socket = new WebSocket(SIGNALING_URL);
 
   socket.onopen = () => {
-    console.log("✅ WebSocket connected");
+    log("✅ WebSocket connected:", SIGNALING_URL);
+    setStatus("Signaling connected");
+  };
+  socket.onclose = () => {
+    log("⚠️ WebSocket closed");
+    setStatus("Signaling disconnected");
+  };
+  socket.onerror = (event) => {
+    log("❌ WebSocket error", event);
   };
 
   socket.onmessage = async (msg) => {
-    let text = msg.data instanceof Blob ? await msg.data.text() : msg.data;
+    const text = msg.data instanceof Blob ? await msg.data.text() : msg.data;
     const data = JSON.parse(text);
 
     if (data.type === "offer") {
-      console.log("📥 SDP offer received");
+      log("📥 SDP offer received");
       await pc.setRemoteDescription(data);
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
       socket.send(JSON.stringify(answer));
-      console.log("📤 SDP answer sent");
-    } else if (data.type === "ice") {
-      await pc.addIceCandidate(data.candidate);
-    }
-  };
-
-  // 6) send ICE candidates to Pi (must be INSIDE startWebRTC)
-  pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      console.log("LOCAL ICE:", event.candidate.candidate);
-
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "ice", candidate: event.candidate }));
-      }
-    } else {
-      console.log("ICE gathering complete");
+      log("📤 SDP answer sent");
+    } else if (data.type === "ice" && data.candidate) {
+      log("📥 Remote ICE candidate added");
     }
   };
 }
+async function init() {
+  try {
+    wirePushToTalk();
+    await setupLocalAudio();
+    createPeerConnection();
+    connectWebSocket();
+    setStatus("Ready (waiting for offer)");
+  } catch (error) {
+    log("❌ Initialization failed:", error);
+    setStatus("Initialization failed - check console");
+    button.disabled = true;
+  }
+}
+
+init();
