@@ -1,19 +1,16 @@
-<head>
-  <title>WebRTC Voice Agent</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>WebRTC Voice Agent</title>
-</head>
-<body>
-
-  <h1>WebRTC Voice Agent</h1>
-  <button id="toggleBtn">Unmute</button>
-
-  <script src="main.js"></script>
-</body>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebRTC Voice Agent</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h1>WebRTC Voice Agent</h1>
+    <p id="status">Initializing...</p>
+    <button id="toggleBtn" type="button">Hold to Talk (Muted)</button>
+    <audio id="remoteAudio" autoplay controls></audio>
+    <script src="main.js"></script>
+  </body>
 </html>
