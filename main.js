@@ -1,7 +1,6 @@
 console.log("🔥 main.js loaded");
 const SIGNALING_URL = "wss://shmeg1repo.onrender.com";
-const FORCE_TURN_RELAY = false; // Set true to force TURN relay-only testing.
-const FORCE_TURN_RELAY = true;
+const FORCE_TURN_RELAY = true; // Set true to force TURN relay-only testing.
 const pcConfig = {
   iceTransportPolicy: FORCE_TURN_RELAY ? "relay" : "all",
   iceServers: [
