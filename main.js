@@ -1,7 +1,7 @@
 console.log("🔥 main.js loaded");
 const SIGNALING_URL = "wss://shmeg1repo.onrender.com";
 const FORCE_TURN_RELAY = false; // Set true to force TURN relay-only testing.
-
+const FORCE_TURN_RELAY = true;
 const pcConfig = {
   iceTransportPolicy: FORCE_TURN_RELAY ? "relay" : "all",
   iceServers: [
@@ -80,10 +80,14 @@ function createPeerConnection() {
 
   pc.ontrack = (event) => {
     log("🎵 Audio track received from Pi");
+    if (!remoteAudio) {
+      log("❌ remoteAudio element not found in HTML");
+      return;
+    }
     remoteAudio.srcObject = event.streams[0];
-    remoteAudio
-      .play()
-      .catch((err) => log("⚠️ Remote audio autoplay blocked until user gesture:", err));
+    remoteAudio.play().catch((err) =>
+      log("⚠️ Remote audio autoplay blocked until user gesture:", err)
+    );
   };
 
   // send browser mic to Pi
