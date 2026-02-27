@@ -41,9 +41,7 @@ function setMuted(muted) {
   }
 
   if (button) {
-    button.textContent = muted
-      ? "Hold to Talk (Muted)"
-      : "Talking... release to mute";
+    button.textContent = muted ? "Unmute" : "Mute";
   }
 }
 
@@ -58,7 +56,7 @@ async function setupLocalAudio() {
     track.enabled = false;
   });
  setMuted(true);
-  button.textContent = muted ? "Unmute" : "Mute";
+ log("Microphone captured (initially muted)");
 }
 
 function createPeerConnection() {
@@ -128,7 +126,8 @@ function connectWebSocket() {
         log("⚠️ Failed to add ICE candidate:", e);
       }
     }
-  }
+  };
+}
 async function init() {
   try {
     wireToggleToTalk();
