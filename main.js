@@ -80,16 +80,17 @@ function createPeerConnection() {
 
   pc.ontrack = (event) => {
     log("🎵 Audio track received from Pi");
+
     if (!remoteAudio) {
-      log("❌ remoteAudio element not found in HTML");
+      log("❌ remoteAudio element not found in index.html");
       return;
     }
+
     remoteAudio.srcObject = event.streams[0];
     remoteAudio.play().catch((err) =>
       log("⚠️ Remote audio autoplay blocked until user gesture:", err)
     );
   };
-
   // send browser mic to Pi
   localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
 }
