@@ -101,34 +101,53 @@ function connectWebSocket() {
     log("✅ WebSocket connected:", SIGNALING_URL);
     setStatus("Signaling connected");
   };
-  socket.onclose = () => {
-    log("⚠️ WebSocket closed");
+
+  socket.onclose = (event) => {
+    log("⚠️ WebSocket closed", {
+      code: event.code,
+      reason: event.reason,
+      wasClean: event.wasClean,
+    });
     setStatus("Signaling disconnected");
   };
+
   socket.onerror = (event) => {
     log("❌ WebSocket error", event);
   };
 
+  // Optional: small keepalive so some hosts don't drop idle sockets
+  const keepAlive = setInterval(() => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "ping", t: Date.now() }));
+    }
+  }, 25000);
+
+  socket.addEventListener("close", () => clearInterval(keepAlive));
+
   socket.onmessage = async (msg) => {
-    const text = msg.data instanceof Blob ? await msg.data.text() : msg.data;
-    const data = JSON.parse(text);
+    try {
+      const text = msg.data instanceof Blob ? await msg.data.text() : msg.data;
+      const data = JSON.parse(text);
 
-    if (data.type === "offer") {
-      log("📥 SDP offer received");
-      await pc.setRemoteDescription(data);
+      if (data.type === "offer") {
+        log("📥 SDP offer received");
+        await pc.setRemoteDescription(data);
 
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
 
-      socket.send(JSON.stringify(answer));
-      log("📤 SDP answer sent");
-    } else if (data.type === "ice" && data.candidate) {
-      try {
+        socket.send(JSON.stringify(answer));
+        log("📤 SDP answer sent");
+      } else if (data.type === "ice" && data.candidate) {
         await pc.addIceCandidate(data.candidate);
         log("📥 Remote ICE candidate added");
-      } catch (e) {
-        log("⚠️ Failed to add ICE candidate:", e);
+      } else if (data.type === "ping") {
+        // ignore (just keepalive)
+      } else {
+        log("ℹ️ Signaling msg:", data.type);
       }
+    } catch (e) {
+      log("⚠️ Failed to handle signaling message:", e);
     }
   };
 }
