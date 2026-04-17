@@ -110,6 +110,11 @@ function createPeerConnection() {
     }
 
     remoteAudio.srcObject = event.streams[0];
+    remoteAudio.muted = false;
+    remoteAudio.volume = 1.0;
+    remoteAudio.autoplay = true;
+    remoteAudio.controls = true;
+    
     remoteAudio.play().catch((err) =>
       log("⚠️ Remote audio autoplay blocked until user gesture:", err)
     );
