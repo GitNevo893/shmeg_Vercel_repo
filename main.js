@@ -1,6 +1,7 @@
 console.log("🔥 main.js loaded");
 const SIGNALING_URL = "wss://shmeg1repo.onrender.com";
 const FORCE_TURN_RELAY = false; // Set true to force TURN relay-only testing.
+
 const pcConfig = {
   iceTransportPolicy: FORCE_TURN_RELAY ? "relay" : "all",
   iceServers: [
@@ -49,26 +50,36 @@ function wireToggleToTalk() {
     setMuted(!isMuted);
   });
 }
+
 async function setupLocalAudio() {
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  localStream.getAudioTracks().forEach((track) => {
-    track.enabled = false;
-  });
- setMuted(true);
- log("Microphone captured (initially muted)");
+  localStream.getAudioTracks().forEach((track) => (track.enabled = false));
+  setMuted(true);
+  log("Microphone captured (initially muted)");
 }
 
 function createPeerConnection() {
   pc = new RTCPeerConnection(pcConfig);
 
+  // --- State logs (so it can't "die silently") ---
   pc.onconnectionstatechange = () => {
     log("🔗 Connection state:", pc.connectionState);
     setStatus(`Connection: ${pc.connectionState}`);
   };
 
+  pc.oniceconnectionstatechange = () => {
+    log("🧊 ICE state:", pc.iceConnectionState);
+  };
+
+  pc.onsignalingstatechange = () => {
+    log("📡 Signaling state:", pc.signalingState);
+  };
+
+  // --- ICE out ---
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       log("LOCAL ICE:", event.candidate.candidate);
+
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "ice", candidate: event.candidate }));
       }
@@ -77,8 +88,14 @@ function createPeerConnection() {
     }
   };
 
+  // --- Remote audio in ---
   pc.ontrack = (event) => {
     log("🎵 Audio track received from Pi");
+
+    const track = event.track;
+    track.onmute = () => log("🔇 Remote track muted");
+    track.onunmute = () => log("🔊 Remote track unmuted");
+    track.onended = () => log("⛔ Remote track ended");
 
     if (!remoteAudio) {
       log("❌ remoteAudio element not found in index.html");
@@ -90,7 +107,30 @@ function createPeerConnection() {
       log("⚠️ Remote audio autoplay blocked until user gesture:", err)
     );
   };
-  // send browser mic to Pi
+
+  // --- DataChannel in (created by Pi) + keepalive ---
+  pc.ondatachannel = (event) => {
+    const channel = event.channel;
+    log("📨 DataChannel received:", channel.label);
+
+    channel.onopen = () => {
+      log("✅ DataChannel open");
+
+      // Keepalive every 15s: prevents NAT mappings expiring on some networks
+      setInterval(() => {
+        if (channel.readyState === "open") channel.send("ping");
+      }, 15000);
+    };
+
+    channel.onmessage = (e) => {
+      if (e.data === "pong") return;
+      log("📩 DataChannel msg:", e.data);
+    };
+
+    channel.onclose = () => log("⚠️ DataChannel closed");
+  };
+
+  // --- Send browser mic to Pi ---
   localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
 }
 
@@ -115,7 +155,7 @@ function connectWebSocket() {
     log("❌ WebSocket error", event);
   };
 
-  // Optional: small keepalive so some hosts don't drop idle sockets
+  // Keepalive so some hosts don't drop idle sockets
   const keepAlive = setInterval(() => {
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: "ping", t: Date.now() }));
@@ -139,10 +179,14 @@ function connectWebSocket() {
         socket.send(JSON.stringify(answer));
         log("📤 SDP answer sent");
       } else if (data.type === "ice" && data.candidate) {
-        await pc.addIceCandidate(data.candidate);
-        log("📥 Remote ICE candidate added");
+        try {
+          await pc.addIceCandidate(data.candidate);
+          log("📥 Remote ICE candidate added");
+        } catch (e) {
+          log("⚠️ Failed to add ICE candidate:", e);
+        }
       } else if (data.type === "ping") {
-        // ignore (just keepalive)
+        // ignore (server keepalive)
       } else {
         log("ℹ️ Signaling msg:", data.type);
       }
@@ -151,6 +195,7 @@ function connectWebSocket() {
     }
   };
 }
+
 async function init() {
   try {
     wireToggleToTalk();
