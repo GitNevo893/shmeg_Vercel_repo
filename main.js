@@ -19,6 +19,7 @@ let pc;
 let localStream;
 let isMuted = true;
 
+const pendingIce = [];
 const button = document.getElementById("toggleBtn");
 const statusEl = document.getElementById("status");
 const remoteAudio = document.getElementById("remoteAudio");
@@ -77,16 +78,22 @@ function createPeerConnection() {
 
   // --- ICE out ---
   pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      log("LOCAL ICE:", event.candidate.candidate);
+  if (event.candidate) {
+    log("LOCAL ICE:", event.candidate.candidate);
 
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "ice", candidate: event.candidate }));
+    // Always buffer
+    pendingIce.push(event.candidate);
+
+    // Flush if possible
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      while (pendingIce.length) {
+        socket.send(JSON.stringify({ type: "ice", candidate: pendingIce.shift() }));
       }
-    } else {
-      log("✅ ICE gathering complete");
     }
-  };
+  } else {
+    log("✅ ICE gathering complete");
+  }
+};
 
   // --- Remote audio in ---
   pc.ontrack = (event) => {
@@ -140,6 +147,9 @@ function connectWebSocket() {
   socket.onopen = () => {
     log("✅ WebSocket connected:", SIGNALING_URL);
     setStatus("Signaling connected");
+    while (pendingIce.length) {
+      socket.send(JSON.stringify({ type: "ice", candidate: pendingIce.shift() }));
+    }
   };
 
   socket.onclose = (event) => {
