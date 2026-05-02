@@ -1,4 +1,4 @@
-console.log("🔥 main.js loaded");
+console.log("main.js loaded");
 const SIGNALING_URL = "wss://shmeg1repo.onrender.com";
 const FORCE_TURN_RELAY = false; // Set true to force TURN relay-only testing.
 
@@ -64,16 +64,16 @@ function createPeerConnection() {
 
   // --- State logs (so it can't "die silently") ---
   pc.onconnectionstatechange = () => {
-    log("🔗 Connection state:", pc.connectionState);
+    log("Connection state:", pc.connectionState);
     setStatus(`Connection: ${pc.connectionState}`);
   };
 
   pc.oniceconnectionstatechange = () => {
-    log("🧊 ICE state:", pc.iceConnectionState);
+    log("ICE state:", pc.iceConnectionState);
   };
 
   pc.onsignalingstatechange = () => {
-    log("📡 Signaling state:", pc.signalingState);
+    log("Signaling state:", pc.signalingState);
   };
 
   // --- ICE out ---
@@ -91,21 +91,21 @@ function createPeerConnection() {
       }
     }
   } else {
-    log("✅ ICE gathering complete");
+    log("ICE gathering complete:)");
   }
 };
 
   // --- Remote audio in ---
   pc.ontrack = (event) => {
-    log("🎵 Audio track received from Pi");
+    log("Audio track received from Pi");
 
     const track = event.track;
-    track.onmute = () => log("🔇 Remote track muted");
-    track.onunmute = () => log("🔊 Remote track unmuted");
-    track.onended = () => log("⛔ Remote track ended");
+    track.onmute = () => log("Remote track muted");
+    track.onunmute = () => log("Remote track unmuted");
+    track.onended = () => log("Remote track ended");
 
     if (!remoteAudio) {
-      log("❌ remoteAudio element not found in index.html");
+      log("remoteAudio element not found in index.html");
       return;
     }
 
@@ -116,17 +116,17 @@ function createPeerConnection() {
     remoteAudio.controls = true;
     
     remoteAudio.play().catch((err) =>
-      log("⚠️ Remote audio autoplay blocked until user gesture:", err)
+      log("Remote audio autoplay blocked until user gesture:", err)
     );
   };
 
   // --- DataChannel in (created by Pi) + keepalive ---
   pc.ondatachannel = (event) => {
     const channel = event.channel;
-    log("📨 DataChannel received:", channel.label);
+    log("DataChannel received:", channel.label);
 
     channel.onopen = () => {
-      log("✅ DataChannel open");
+      log("DataChannel open");
 
       // Keepalive every 15s: prevents NAT mappings expiring on some networks
       setInterval(() => {
@@ -136,10 +136,10 @@ function createPeerConnection() {
 
     channel.onmessage = (e) => {
       if (e.data === "pong") return;
-      log("📩 DataChannel msg:", e.data);
+      log("DataChannel msg:", e.data);
     };
 
-    channel.onclose = () => log("⚠️ DataChannel closed");
+    channel.onclose = () => log("DataChannel closed");
   };
 
   // --- Send browser mic to Pi ---
@@ -150,7 +150,7 @@ function connectWebSocket() {
   socket = new WebSocket(SIGNALING_URL);
 
   socket.onopen = () => {
-    log("✅ WebSocket connected:", SIGNALING_URL);
+    log("WebSocket connected:", SIGNALING_URL);
     setStatus("Signaling connected");
     while (pendingIce.length) {
       socket.send(JSON.stringify({ type: "ice", candidate: pendingIce.shift() }));
@@ -158,7 +158,7 @@ function connectWebSocket() {
   };
 
   socket.onclose = (event) => {
-    log("⚠️ WebSocket closed", {
+    log("WebSocket closed", {
       code: event.code,
       reason: event.reason,
       wasClean: event.wasClean,
@@ -167,7 +167,7 @@ function connectWebSocket() {
   };
 
   socket.onerror = (event) => {
-    log("❌ WebSocket error", event);
+    log("WebSocket error", event);
   };
 
   // Keepalive so some hosts don't drop idle sockets
@@ -185,28 +185,28 @@ function connectWebSocket() {
       const data = JSON.parse(text);
 
       if (data.type === "offer") {
-        log("📥 SDP offer received");
+        log("SDP offer received");
         await pc.setRemoteDescription(data);
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
         socket.send(JSON.stringify(answer));
-        log("📤 SDP answer sent");
+        log("SDP answer sent");
       } else if (data.type === "ice" && data.candidate) {
         try {
           await pc.addIceCandidate(data.candidate);
-          log("📥 Remote ICE candidate added");
+          log("Remote ICE candidate added");
         } catch (e) {
-          log("⚠️ Failed to add ICE candidate:", e);
+          log("Failed to add ICE candidate:", e);
         }
       } else if (data.type === "ping") {
         // ignore (server keepalive)
       } else {
-        log("ℹ️ Signaling msg:", data.type);
+        log("Signaling msg:", data.type);
       }
     } catch (e) {
-      log("⚠️ Failed to handle signaling message:", e);
+      log("Failed to handle signaling message:", e);
     }
   };
 }
@@ -219,7 +219,7 @@ async function init() {
     connectWebSocket();
     setStatus("Ready (waiting for offer)");
   } catch (error) {
-    log("❌ Initialization failed:", error);
+    log("Initialization failed:", error);
     setStatus("Initialization failed - check console");
     button.disabled = true;
   }
