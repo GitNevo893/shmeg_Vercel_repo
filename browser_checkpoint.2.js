@@ -1,4 +1,4 @@
-console.log("🔥 main.js loaded");
+console.log("main.js loaded");
 const SIGNALING_URL = "wss://shmeg1repo.onrender.com";
 const FORCE_TURN_RELAY = false; // Set true to force TURN relay-only testing.
 const pcConfig = {
@@ -62,7 +62,7 @@ function createPeerConnection() {
   pc = new RTCPeerConnection(pcConfig);
 
   pc.onconnectionstatechange = () => {
-    log("🔗 Connection state:", pc.connectionState);
+    log("Connection state:", pc.connectionState);
     setStatus(`Connection: ${pc.connectionState}`);
   };
 
@@ -73,21 +73,25 @@ function createPeerConnection() {
         socket.send(JSON.stringify({ type: "ice", candidate: event.candidate }));
       }
     } else {
-      log("✅ ICE gathering complete");
+      log("ICE gathering complete");
     }
   };
 
   pc.ontrack = (event) => {
-    log("🎵 Audio track received from Pi");
+    log("Audio track received from Pi");
 
     if (!remoteAudio) {
-      log("❌ remoteAudio element not found in index.html");
+      log("remoteAudio element not found in index.html");
       return;
     }
 
     remoteAudio.srcObject = event.streams[0];
+    remoteAudio.muted = false;
+    remoteAudio.volume = 1.0;
+    remoteAudio.autoplay = true;
+    remoteAudio.controls = true;
     remoteAudio.play().catch((err) =>
-      log("⚠️ Remote audio autoplay blocked until user gesture:", err)
+      log("Remote audio autoplay blocked until user gesture:", err)
     );
   };
   // send browser mic to Pi
@@ -98,12 +102,12 @@ function connectWebSocket() {
   socket = new WebSocket(SIGNALING_URL);
 
   socket.onopen = () => {
-    log("✅ WebSocket connected:", SIGNALING_URL);
+    log("WebSocket connected:", SIGNALING_URL);
     setStatus("Signaling connected");
   };
 
   socket.onclose = (event) => {
-    log("⚠️ WebSocket closed", {
+    log("WebSocket closed", {
       code: event.code,
       reason: event.reason,
       wasClean: event.wasClean,
@@ -112,7 +116,7 @@ function connectWebSocket() {
   };
 
   socket.onerror = (event) => {
-    log("❌ WebSocket error", event);
+    log("WebSocket error", event);
   };
 
   // Optional: small keepalive so some hosts don't drop idle sockets
@@ -130,24 +134,24 @@ function connectWebSocket() {
       const data = JSON.parse(text);
 
       if (data.type === "offer") {
-        log("📥 SDP offer received");
+        log("SDP offer received");
         await pc.setRemoteDescription(data);
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
         socket.send(JSON.stringify(answer));
-        log("📤 SDP answer sent");
+        log("SDP answer sent");
       } else if (data.type === "ice" && data.candidate) {
         await pc.addIceCandidate(data.candidate);
-        log("📥 Remote ICE candidate added");
+        log("Remote ICE candidate added");
       } else if (data.type === "ping") {
         // ignore (just keepalive)
       } else {
-        log("ℹ️ Signaling msg:", data.type);
+        log("Signaling msg:", data.type);
       }
     } catch (e) {
-      log("⚠️ Failed to handle signaling message:", e);
+      log("Failed to handle signaling message:", e);
     }
   };
 }
@@ -159,7 +163,7 @@ async function init() {
     connectWebSocket();
     setStatus("Ready (waiting for offer)");
   } catch (error) {
-    log("❌ Initialization failed:", error);
+    log("Initialization failed:", error);
     setStatus("Initialization failed - check console");
     button.disabled = true;
   }
