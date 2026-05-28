@@ -78,26 +78,32 @@ function createPeerConnection() {
   };
 
   pc.ontrack = (event) => {
-    log("Audio track received from Pi");
+  console.log("Audio track received from Pi");
+  console.log("track kind:", event.track.kind);
+  console.log("streams length:", event.streams.length);
 
-    if (!remoteAudio) {
-      log("remoteAudio element not found in index.html");
-      return;
-    }
+  if (!remoteAudio) {
+    console.log("remoteAudio element not found in index.html");
+    return;
+  }
 
-    remoteAudio.srcObject = event.streams[0];
-    remoteAudio.muted = false;
-    remoteAudio.volume = 1.0;
-    remoteAudio.autoplay = true;
-    remoteAudio.controls = true;
-    remoteAudio.play().catch((err) =>
-      log("Remote audio autoplay blocked until user gesture:", err)
-    );
-  };
-  // send browser mic to Pi
-  localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
-}
+  // aiortc may send a track without a populated event.streams[0]
+  const stream =
+    event.streams && event.streams.length > 0
+      ? event.streams[0]
+      : new MediaStream([event.track]);
 
+  remoteAudio.srcObject = stream;
+  remoteAudio.muted = false;
+  remoteAudio.volume = 1.0;
+  remoteAudio.autoplay = true;
+  remoteAudio.controls = true;
+  remoteAudio.playsInline = true;
+
+  remoteAudio.play().catch((err) =>
+    console.log("Remote audio autoplay blocked until user gesture:", err)
+  );
+};
 function connectWebSocket() {
   socket = new WebSocket(SIGNALING_URL);
 
