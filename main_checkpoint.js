@@ -17,6 +17,7 @@ let socket;
 let pc;
 let localStream;
 let isMuted = true;
+const pendingIce = [];
 
 const button = document.getElementById("toggleBtn");
 const statusEl = document.getElementById("status");
@@ -66,30 +67,70 @@ function createPeerConnection() {
     setStatus(`Connection: ${pc.connectionState}`);
   };
 
-  pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      log("LOCAL ICE:", event.candidate.candidate);
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "ice", candidate: event.candidate }));
+pc.onicecandidate = (event) => {
+  if (event.candidate) {
+    log("LOCAL ICE:", event.candidate.candidate);
+
+    pendingIce.push(event.candidate);
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      while (pendingIce.length) {
+        socket.send(JSON.stringify({ type: "ice", candidate: pendingIce.shift() }));
       }
-    } else {
-      log("ICE gathering complete");
     }
+  } else {
+    log("ICE gathering complete");
+  }
+};
+  
+pc.ontrack = (event) => {
+  log("Audio track received from Pi");
+  log("track kind:", event.track.kind);
+  log("streams length:", event.streams.length);
+
+  if (!remoteAudio) {
+    log("remoteAudio element not found in index.html");
+    return;
+  }
+
+  const stream =
+    event.streams && event.streams.length > 0
+      ? event.streams[0]
+      : new MediaStream([event.track]);
+
+  remoteAudio.srcObject = stream;
+  remoteAudio.muted = false;
+  remoteAudio.volume = 1.0;
+  remoteAudio.autoplay = true;
+  remoteAudio.controls = true;
+  remoteAudio.playsInline = true;
+
+  remoteAudio.play().catch((err) =>
+    log("Remote audio autoplay blocked until user gesture:", err)
+  );
+};
+  
+pc.ondatachannel = (event) => {
+  const channel = event.channel;
+  log("DataChannel received:", channel.label);
+
+  channel.onopen = () => {
+    log("DataChannel open");
+
+    setInterval(() => {
+      if (channel.readyState === "open") {
+        channel.send("ping");
+      }
+    }, 15000);
   };
 
-  pc.ontrack = (event) => {
-    log("Audio track received from Pi");
-
-    if (!remoteAudio) {
-      log("remoteAudio element not found in index.html");
-      return;
-    }
-
-    remoteAudio.srcObject = event.streams[0];
-    remoteAudio.play().catch((err) =>
-      log("Remote audio autoplay blocked until user gesture:", err)
-    );
+  channel.onmessage = (e) => {
+    if (e.data === "pong") return;
+    log("DataChannel msg:", e.data);
   };
+
+  channel.onclose = () => log("DataChannel closed");
+};
   // send browser mic to Pi
   localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
 }
@@ -100,6 +141,10 @@ function connectWebSocket() {
   socket.onopen = () => {
     log("WebSocket connected:", SIGNALING_URL);
     setStatus("Signaling connected");
+
+    while (pendingIce.length) {
+      socket.send(JSON.stringify({ type: "ice", candidate: pendingIce.shift() }));
+    }
   };
 
   socket.onclose = (event) => {
