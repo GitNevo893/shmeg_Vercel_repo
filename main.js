@@ -16,7 +16,7 @@ const pcConfig = {
 let socket;
 let pc;
 let localStream;
-let isMuted = true;
+let isMuted = false;
 
 const button = document.getElementById("toggleBtn");
 const statusEl = document.getElementById("status");
